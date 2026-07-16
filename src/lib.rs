@@ -1,3 +1,2 @@
-pub mod event_producer;
+pub mod driver;
 pub mod error;
-mod driver;
