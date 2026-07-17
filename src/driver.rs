@@ -1,26 +1,23 @@
-//! The even loop. 
-use crate::error::DriverErrors;
-use std::{
-    io::Read,
-    net::{self, TcpStream},
-};
+//! The even loop.
+use crate::{error::DriverErrors, worker::Worker};
+use std::net::{self, TcpStream};
 
-/// The events support by the event loop. 
+/// The events support by the event loop.
 #[derive(Debug)]
-enum Events {
+pub enum Events {
     /// This event is triggered whanever a new connection is accepted.
     Connected(TcpStream),
 }
 
-/// The event loop type. It does not hold any state. The purpose of type `Driver` is merely for 
-/// organization and scalability. 
+/// The event loop type. It does not hold any state. The purpose of type `Driver` is merely for
+/// organization and scalability.
 #[derive(Debug)]
 pub struct Driver();
 
 impl Driver {
-    /// Starts the event loop openning a new connection in a random port. 
-    /// 
-    /// # Errors 
+    /// Starts the event loop openning a new connection in a random port.
+    ///
+    /// # Errors
     /// It will return a `DriverError::Io` if it's not possible to open a new connection.
     pub fn start() -> Result<(), DriverErrors> {
         let (listener, address) = connect()?;
@@ -32,19 +29,11 @@ impl Driver {
         }
     }
 
-    fn dispatch_event(event: Events) {
+    pub fn dispatch_event(event: Events) {
         match event {
-            Events::Connected(stream) => worker(stream),
+            Events::Connected(stream) => Worker::show_client_message(stream),
         }
     }
-}
-
-fn worker(mut stream: TcpStream) {
-    let mut buf = vec![0u8; 512];
-    let read_bytes = stream.read(&mut buf).expect("bytes to be read");
-
-    buf.truncate(read_bytes);
-    println!("Client sent: {}", String::from_utf8(buf).unwrap())
 }
 
 fn connect() -> Result<(net::TcpListener, net::SocketAddr), DriverErrors> {
