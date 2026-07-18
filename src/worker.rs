@@ -1,10 +1,11 @@
 use std::net::TcpStream;
-use std::io::Read; 
+use std::io::{Read};
 
-pub struct Worker();
+/// The server that receive and process the client messages. 
+pub struct Server();
 
-impl Worker {
-    fn read_to_string(mut stream: TcpStream) -> String {
+impl Server {
+    fn read_to_string(mut stream: &TcpStream) -> String {
         let mut buf = vec![0u8; 512];
         let read_bytes = stream.read(&mut buf).expect("bytes to be read");
     
@@ -14,6 +15,11 @@ impl Worker {
     }
 
     pub fn show_client_message(stream: TcpStream) {
-        println!("Client said: {}", Self::read_to_string(stream));
+        loop {
+            let string = Self::read_to_string(&stream);
+            if string.is_empty() { break }
+            
+            println!("Client said: {}", string);
+        }
     }
 }

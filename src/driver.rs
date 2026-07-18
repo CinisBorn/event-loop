@@ -1,10 +1,9 @@
 //! The even loop.
-use crate::{error::DriverErrors, worker::Worker};
+use crate::{error::DriverErrors, worker::Server};
 use std::net::{self, TcpStream};
 
 /// The events support by the event loop.
-#[derive(Debug)]
-pub enum Events {
+#[derive(Debug)] pub enum Events {
     /// This event is triggered whanever a new connection is accepted.
     Connected(TcpStream),
 }
@@ -25,13 +24,13 @@ impl Driver {
 
         loop {
             let (stream, _) = listener.accept()?;
-            Self::dispatch_event(Events::Connected(stream));
+            Self::dispatch_event(Events::Connected(stream.try_clone().unwrap()));
         }
     }
 
     pub fn dispatch_event(event: Events) {
         match event {
-            Events::Connected(stream) => Worker::show_client_message(stream),
+            Events::Connected(stream) => Server::show_client_message(stream),
         }
     }
 }
