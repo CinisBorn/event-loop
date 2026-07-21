@@ -2,6 +2,22 @@
 use std::collections::HashMap;
 use std::os::fd::OwnedFd;
 
+use rustix::buffer::spare_capacity;
+use rustix::io::{ioctl_fionbio, read};
+use rustix::net::accept;
+use rustix::event::epoll::{self, EventData};
+
+use rustix::net::{
+    AddressFamily,
+    SocketType,
+    SocketAddrV4,
+    Ipv4Addr,
+    socket,
+    ipproto,
+    bind,
+    listen,
+};
+
 /// The event loop type. It does not hold any state. The purpose of type `Driver` is merely for
 /// organization and scalability.
 #[derive(Debug)]
@@ -9,17 +25,6 @@ pub struct Driver();
 
 impl Driver {
     fn create_socket() -> Result<OwnedFd, rustix::io::Errno> {
-        use rustix::net::{
-            AddressFamily,
-            SocketType,
-            SocketAddrV4,
-            Ipv4Addr,
-            socket,
-            ipproto,
-            bind,
-            listen,
-        };
-        
         let socket = socket(
             AddressFamily::INET, 
             SocketType::STREAM, 
@@ -36,9 +41,28 @@ impl Driver {
         Ok(socket)
     }
 
-    fn watch_events() -> Result<(), rustix::io::Errno> {
-        use rustix::event::epoll;
+    fn register_socket(
+        socket: &OwnedFd,
+        epoll_file: &OwnedFd,
+        sockets: &mut HashMap<EventData, OwnedFd>,
+        next_id: EventData,
+    ) -> Result<(), rustix::io::Errno> {
+        let conn_sock = accept(&socket)?;
+        ioctl_fionbio(&conn_sock, true)?;
+            
+        epoll::add(
+            &epoll_file, 
+            &conn_sock,
+            next_id.clone(), 
+            epoll::EventFlags::IN | epoll::EventFlags::ET,
+        )?;
+
+        sockets.insert(next_id, conn_sock);
         
+        Ok(())
+    }
+    
+    fn watch_events() -> Result<(), rustix::io::Errno> {
         let socket = Self::create_socket()?;
         let epoll_file = epoll::create(epoll::CreateFlags::CLOEXEC)?;
         
@@ -54,10 +78,6 @@ impl Driver {
         let mut event_list = Vec::with_capacity(4);
 
         loop {
-            use rustix::buffer::spare_capacity;
-            use rustix::io::{ioctl_fionbio, read};
-            use rustix::net::{accept};
-            
             epoll::wait(&epoll_file, spare_capacity(&mut event_list), None)?;
 
             for event in event_list.drain(..) {
@@ -66,17 +86,7 @@ impl Driver {
                         let target = event.data;
                         
                         if target.u64() == 1 {
-                            let conn_sock = accept(&socket)?;
-                            ioctl_fionbio(&conn_sock, true)?;
-                            
-                            epoll::add(
-                                &epoll_file, 
-                                &conn_sock,
-                                next_id, 
-                                epoll::EventFlags::IN | epoll::EventFlags::ET,
-                            )?;
-        
-                            sockets.insert(next_id, conn_sock);
+                            Self::register_socket(&socket, &epoll_file,&mut sockets, next_id)?;
                             next_id = epoll::EventData::new_u64(next_id.u64() + 1);
                         } else {
                             let client = sockets.get(&target).unwrap();
