@@ -93,8 +93,14 @@ impl Driver {
                             let mut buf = vec![0u8; 512];
                             
                             let read_bytes = read(client, &mut buf).expect("the message to be read");
-                            buf.truncate(read_bytes);
+
+                            if read_bytes == 0 {
+                                let target = sockets.remove(&target).unwrap();
+                                let _ = epoll::delete(&epoll_file, &target);
+                                println!("socket closed");
+                            };
                             
+                            buf.truncate(read_bytes);
                             println!("{:?}", String::from_utf8(buf).unwrap());
                         }
                     },
