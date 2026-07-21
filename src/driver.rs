@@ -1,4 +1,4 @@
-//! The even loop.
+//! The event loop.
 use std::collections::HashMap;
 use std::os::fd::OwnedFd;
 
@@ -6,7 +6,6 @@ use rustix::buffer::spare_capacity;
 use rustix::io::{ioctl_fionbio, read};
 use rustix::net::accept;
 use rustix::event::epoll::{self, EventData};
-
 use rustix::net::{
     AddressFamily,
     SocketType,
@@ -110,10 +109,7 @@ impl Driver {
         }
     }
     
-    /// Starts the event loop openning a new connection in a random port.
-    ///
-    /// # Errors
-    /// It will return a `DriverError::Io` if it's not possible to open a new connection.
+    /// Starts the event loop creating a new TCP socket waiting for incoming events at address: `127.0.0.1:8080`.
     pub fn start() {
         let _ = Self::watch_events();
     }
