@@ -55,32 +55,41 @@ impl Driver {
 
         loop {
             use rustix::buffer::spare_capacity;
-            use rustix::io::{ioctl_fionbio, write};
+            use rustix::io::{ioctl_fionbio, read};
             use rustix::net::{accept};
             
             epoll::wait(&epoll_file, spare_capacity(&mut event_list), None)?;
 
             for event in event_list.drain(..) {
-                let target = event.data;
-                
-                if target.u64() == 1 {
-                    let conn_sock = accept(&socket)?;
-                    ioctl_fionbio(&conn_sock, true)?;
-                    
-                    epoll::add(
-                        &epoll_file, 
-                        &conn_sock,
-                        next_id, 
-                        epoll::EventFlags::OUT | epoll::EventFlags::ET,
-                    )?;
-
-                    sockets.insert(next_id, conn_sock);
-                    next_id = epoll::EventData::new_u64(next_id.u64() + 1);
-                } else {
-                    let target = sockets.remove(&target).expect("failed to remove target");
-                    write(&target, b"hello\n")?;
-                    let _ = epoll::delete(&epoll_file, &target)?; 
-                }
+                match event.flags {
+                    epoll::EventFlags::IN => {
+                        let target = event.data;
+                        
+                        if target.u64() == 1 {
+                            let conn_sock = accept(&socket)?;
+                            ioctl_fionbio(&conn_sock, true)?;
+                            
+                            epoll::add(
+                                &epoll_file, 
+                                &conn_sock,
+                                next_id, 
+                                epoll::EventFlags::IN | epoll::EventFlags::ET,
+                            )?;
+        
+                            sockets.insert(next_id, conn_sock);
+                            next_id = epoll::EventData::new_u64(next_id.u64() + 1);
+                        } else {
+                            let client = sockets.get(&target).unwrap();
+                            let mut buf = vec![0u8; 512];
+                            
+                            let read_bytes = read(client, &mut buf).expect("the message to be read");
+                            buf.truncate(read_bytes);
+                            
+                            println!("{:?}", String::from_utf8(buf).unwrap());
+                        }
+                    },
+                    _ => eprint!("Event is not known")
+                };
             }
         }
     }
