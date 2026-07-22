@@ -94,9 +94,7 @@ impl Driver {
                             let read_bytes = read(client, &mut buf).expect("the message to be read");
 
                             if read_bytes == 0 {
-                                let target = sockets.remove(&target).unwrap();
-                                let _ = epoll::delete(&epoll_file, &target);
-                                println!("socket closed");
+                                Self::close_connection(&mut sockets, target, &epoll_file);
                             };
                             
                             buf.truncate(read_bytes);
@@ -112,5 +110,21 @@ impl Driver {
     /// Starts the event loop creating a new TCP socket waiting for incoming events at address: `127.0.0.1:8080`.
     pub fn start() {
         let _ = Self::watch_events();
+    }
+
+    /// Closes the connection removing the client socket from `epoll` file.
+    /// # Bugs 
+    /// There is a known behavior where the connection isn't closed if the buffer (512 bytes) is overflowed. Hower it occurs
+    /// just if the programmer relies on client sending `0` once the client close the connection with *ctrl + c* . 
+    /// 
+    /// It will be fixed later
+    fn close_connection(
+        sockets: &mut HashMap<EventData, OwnedFd>, 
+        target: EventData,
+        epoll_file: &OwnedFd
+    ) {
+        let target = sockets.remove(&target).unwrap();
+        let _ = epoll::delete(epoll_file, &target);
+        dbg!("✅ Connection closed successfully");
     }
 }
